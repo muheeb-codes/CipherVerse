@@ -4,13 +4,19 @@ import languageModules from '../ciphers';
 import { AppState, Mode } from '../types';
 
 const useCipherState = () => {
-  const savedState = localStorage.getItem('cipherverseState');
+  const [isClient, setIsClient] = useState(false);
+  
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const savedState = isClient ? localStorage.getItem('cipherverseState') : null;
   const initialState: AppState = savedState ? JSON.parse(savedState) : {
     inputText: '',
     outputText: '',
     selectedLanguage: languageModules[0].name,
     mode: 'encrypt' as Mode,
-    darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
+    darkMode: isClient ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
     password: '',
     isPasswordProtected: false
   };
@@ -18,34 +24,42 @@ const useCipherState = () => {
   const [state, setState] = useState<AppState>(initialState);
   
   useEffect(() => {
-    if (state.inputText) {
-      let processedText = state.inputText;
-      
-      // Handle password protection for encryption
-      if (state.mode === 'encrypt' && state.isPasswordProtected && state.password) {
-        processedText = CryptoJS.AES.encrypt(processedText, state.password).toString();
-      }
-      
-      // Process with selected cipher
-      const selectedModule = languageModules.find(module => module.name === state.selectedLanguage);
-      if (!selectedModule) return;
+    if (!state.inputText) {
+      setState(prev => ({ ...prev, outputText: '' }));
+      return;
+    }
 
-      let output = state.mode === 'encrypt' 
-        ? selectedModule.encrypt(processedText)
-        : selectedModule.decrypt(processedText);
-        
-      // Handle password protection for decryption
-      if (state.mode === 'decrypt' && state.isPasswordProtected && state.password) {
+    const selectedModule = languageModules.find(module => module.name === state.selectedLanguage);
+    if (!selectedModule) return;
+
+    let output = '';
+
+    if (state.mode === 'encrypt') {
+      // For encryption: cipher first, then password
+      output = selectedModule.encrypt(state.inputText);
+      
+      if (state.isPasswordProtected && state.password) {
+        output = CryptoJS.AES.encrypt(output, state.password).toString();
+      }
+    } else {
+      // For decryption: password first, then cipher
+      let decryptedText = state.inputText;
+      
+      if (state.isPasswordProtected && state.password) {
         try {
-          const decrypted = CryptoJS.AES.decrypt(output, state.password);
-          output = decrypted.toString(CryptoJS.enc.Utf8);
+          const decrypted = CryptoJS.AES.decrypt(decryptedText, state.password);
+          decryptedText = decrypted.toString(CryptoJS.enc.Utf8);
         } catch (error) {
           output = 'Invalid password or corrupted text';
+          setState(prev => ({ ...prev, outputText: output }));
+          return;
         }
       }
-
-      setState(prev => ({ ...prev, outputText: output }));
+      
+      output = selectedModule.decrypt(decryptedText);
     }
+
+    setState(prev => ({ ...prev, outputText: output }));
   }, [state.inputText, state.mode, state.selectedLanguage, state.password, state.isPasswordProtected]);
 
   useEffect(() => {

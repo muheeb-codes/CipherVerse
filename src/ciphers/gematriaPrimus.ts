@@ -18,21 +18,26 @@ export const encrypt = (text: string): string => {
       if (letterToPrime[char]) {
         return letterToPrime[char].toString();
       }
-      // Preserve spaces and special characters
-      return char.match(/[A-Z]/) ? '' : char;
+      // Return empty string for unmapped letters, preserve spaces
+      return char === ' ' ? '/' : '';
     })
     .join(' ');
 };
 
 export const decrypt = (text: string): string => {
-  // Split by spaces or any non-numeric character
+  // Split by spaces, treating / as word separator
   return text
-    .split(/\s+/)
-    .map(numStr => {
-      const num = parseInt(numStr.trim(), 10);
-      return primeToLetter[num] || (isNaN(num) ? numStr : '');
+    .split('/')
+    .map(numGroup => {
+      return numGroup
+        .split(/\s+/)
+        .map(numStr => {
+          const num = parseInt(numStr.trim(), 10);
+          return primeToLetter[num] || '';
+        })
+        .join('');
     })
-    .join('');
+    .join(' ');
 };
 
 export default {
